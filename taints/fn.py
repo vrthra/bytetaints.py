@@ -73,17 +73,15 @@ def __call(fn, tupl):
     return Instrument.i(fn)(*tupl)
 
 def __unary(a, op):
-    global tainted
     v = unaryops[op](a)
     if Instrument.is_tainted(a):
-        tainted[id(v)] = True
+        Instrument.mark(v)
     return v
 
 def __bin(a,b, op):
-    global tainted
     v = binops[op](a,b)
     if Instrument.is_tainted((a, b)):
-        tainted[id(v)] = True
+        Instrument.mark(v)
     return v
 
 class Instrument:
@@ -104,6 +102,17 @@ class Instrument:
     def i_call_function(self, nargs): return self.i_('CALL_FUNCTION', nargs)
     def i_load_const(self, op):       return self.i_('LOAD_CONST', len(self.fn.consts), op, "'%s'" % op)
     def i_build_tuple(self, nargs):   return self.i_('BUILD_TUPLE', nargs)
+
+    @classmethod
+    def mark(cls, i):
+        global tainted
+        tainted[id(i)] = True
+
+    @classmethod
+    def unmark(cls, i):
+        global tainted
+        if id(i) in tainted:
+            del tainted[id(i)]
 
     @classmethod
     def add_source(cls, func):
@@ -136,14 +145,13 @@ class Instrument:
 
     @classmethod
     def i(cls, func):
-        global tainted
         if func.__qualname__ in cls.sources:
             def myfun(*tupl):
                 """ MyFun Sources %s """ % func.__qualname__
                 # a source will always taint its output. So no instrumentation
                 # necessary.
                 v = func(*tupl)
-                tainted[id(v)] = True
+                cls.mark(v)
                 return v
             return myfun
         elif func.__qualname__ in cls.cleaners:
@@ -152,8 +160,7 @@ class Instrument:
                 # a cleaner cleans up what ever gets passed in. Its results are
                 # always untainted
                 v = func(*tupl)
-                if id(v) in tainted:
-                    del tainted[id(v)]
+                cls.unmark(v)
                 return v
             return myfun
         elif func.__qualname__ in cls.sinks:
@@ -181,7 +188,8 @@ class Instrument:
         elif str(type(func)) == "<class 'builtin_function_or_method'>":
             def myfun(*tupl):
                 v = func(*tupl)
-                tainted[id(v)] = Instrument.is_tainted(tupl)
+                if Instrument.is_tainted(tupl):
+                    Instrument.mark(v)
                 return v
             return myfun
         ins = Instrument(func)
@@ -224,5 +232,4 @@ class Instrument:
         self.fn.opcodes = lst
         self.fn.update_bytecode()
         self.function = self.fn.build()
-        #self.function.__qualname__ = func.__qualname__
 
