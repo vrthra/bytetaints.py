@@ -91,6 +91,14 @@ unaryops = {
 #          'Or': lambda a, b: a or b
 #        }
 
+def __call(fn, tupl):
+    global tainted
+    v = fn(*tupl)
+    for i in tupl:
+        if id(i) in tainted:
+            tainted[id(v)] = True
+    return v
+
 def __unary(a, op):
     global tainted
     v = unaryops[op](a)
@@ -140,6 +148,23 @@ class Instrument:
                 call = dis.Instruction(opname='CALL_FUNCTION', opcode=131,
                         arg=2, argval=2, argrepr='', offset=6, starts_line=None, is_jump_target=False)
                 lst.extend([glob, attr, rot, con1, call])
+            elif i.opname == 'CALL_FUNCTION':
+                print(i)
+                op = i.opname
+                nargs = i.arg
+                self.fn.co_names.extend(['fn', '__call'])
+                self.fn.consts.append(op)
+                tupl  = dis.Instruction(opname='BUILD_TUPLE', opcode=102,
+                        arg=nargs, argval=nargs, argrepr='', offset=4, starts_line=None, is_jump_target=False)
+                glob  = dis.Instruction(opname='LOAD_GLOBAL', opcode=116,
+                        arg=len(self.fn.co_names) - 2, argval='fn', argrepr='fn', offset=0, starts_line=0, is_jump_target=False)
+                attr = dis.Instruction(opname='LOAD_ATTR', opcode=106,
+                        arg=len(self.fn.co_names) - 1, argval='__call', argrepr='__call', offset=2, starts_line=None, is_jump_target=False)
+                rot  = dis.Instruction(opname='ROT_THREE', opcode=3,
+                        arg=None, argval=None, argrepr='', offset=6, starts_line=None, is_jump_target=False)
+                call = dis.Instruction(opname='CALL_FUNCTION', opcode=131,
+                        arg=2, argval=2, argrepr='', offset=6, starts_line=None, is_jump_target=False)
+                lst.extend([tupl, glob, attr, rot, call])
             else:
                 lst.append(i)
         self.fn.opcodes = lst
