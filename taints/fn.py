@@ -102,9 +102,8 @@ def __call(fn, tupl):
             return v
     else:
         # if not built in, we should use the instrumented version.
-        _fn = Instrument(fn).function
-        v = _fn(*tupl)
-        return v
+        # The instrumentation takes care of propagating taints
+        return Instrument.i(fn)(*tupl)
 
 def __unary(a, op):
     global tainted
@@ -122,25 +121,19 @@ def __bin(a,b, op):
 
 class Instrument:
     cache = {}
-    def i_(self, opname, arg, argval, argrepr):
+    def i_(self, opname, arg=None, argval=None, argrepr=''):
+        if arg is not None and argval is None: argval = arg
         return dis.Instruction(opname=opname, opcode=dis.opmap[opname],
                         arg=arg, argval=argval, argrepr=argrepr,
                         offset=0, starts_line=None, is_jump_target=False)
 
-    def i_global(self):
-        return self.i_('LOAD_GLOBAL', len(self.fn.co_names) - 2, 'fn', 'fn')
-    def i_attr(self, attr):
-        return self.i_('LOAD_ATTR', len(self.fn.co_names) - 1, attr, attr)
-    def i_rot3(self):
-        return self.i_('ROT_THREE', None, None, '')
-    def i_rot2(self):
-        return self.i_('ROT_TWO', None, None, '')
-    def i_call(self, nargs):
-        return self.i_('CALL_FUNCTION', nargs, nargs, '')
-    def i_const(self, op):
-        return self.i_('LOAD_CONST', len(self.fn.consts), op, "'%s'" % op)
-    def i_tuple(self, nargs):
-        return self.i_('BUILD_TUPLE', nargs, nargs, '')
+    def i_global(self):      return self.i_('LOAD_GLOBAL', len(self.fn.co_names) - 2, 'fn')
+    def i_attr(self, attr):  return self.i_('LOAD_ATTR', len(self.fn.co_names) - 1, attr)
+    def i_rot3(self):        return self.i_('ROT_THREE')
+    def i_rot2(self):        return self.i_('ROT_TWO')
+    def i_call(self, nargs): return self.i_('CALL_FUNCTION', nargs)
+    def i_const(self, op):   return self.i_('LOAD_CONST', len(self.fn.consts), op, "'%s'" % op)
+    def i_tuple(self, nargs):return self.i_('BUILD_TUPLE', nargs)
 
     @classmethod
     def i(cls, func):
