@@ -50,65 +50,99 @@ class Function:
     def name(self):
         return self.func.__name__
 
-__tainted = {}
+tainted = {}
+binops = {
+          'BINARY_ADD': lambda a, b: a + b,
+          'BINARY_SUBTRACT': lambda a, b: a - b,
+          'BINARY_MULTIPLY':  lambda a, b: a * b,
+          'BINARY_MATRIX_MULTIPLY':  lambda a, b: a @ b,
+          'BINARY_TRUE_DIVIDE': lambda a, b: a / b,
+          'BINARY_MODULO': lambda a, b: a % b,
+          'BINARY_POWER': lambda a, b: a ** b,
+          'BINARY_LSHIFT':  lambda a, b: a << b,
+          'BINARY_RSHIFT': lambda a, b: a >> b,
+          'BINARY_OR': lambda a, b: a | b,
+          'BINARY_XOR': lambda a, b: a ^ b,
+          'BINARY_AND': lambda a, b: a & b,
+          'BINARY_FLOOR_DIVIDE': lambda a, b: a // b,
+          }
+unaryops = {
+          'UNARY_POSITIVE': lambda a: a,
+          'UNARY_NEGATIVE': lambda a: -a,
+          'UNARY_NOT': lambda a: not a,
+          'UNARY_INVERT': lambda a: ~a
+        }
+#cmpops = {
+#          # cmpop = Eq | NotEq | Lt | LtE | Gt | GtE | Is | IsNot | In | NotIn
+#          'Eq': lambda a, b: a == b,
+#          'NotEq': lambda a, b: a != b,
+#          'Lt': lambda a, b: a < b,
+#          'LtE': lambda a, b: a <= b,
+#          'Gt': lambda a, b: a > b,
+#          'GtE': lambda a, b: a >= b,
+#          'Is': lambda a, b: a is b,
+#          'IsNot': lambda a, b: a is not b,
+#          'In': lambda a, b: a in b,
+#          'NotIn': lambda a, b: a not in b
+#          }
+#boolops = {
+#          # boolop = And | Or
+#          'And': lambda a, b: a and b,
+#          'Or': lambda a, b: a or b
+#        }
 
-def __add(a,b):
-    global __tainted
-    v = a+b
-    if id(a) in __tainted or id(b) in __tainted:
-        __tainted[id(v)] = True
-    return v
-def __sub(a,b):
-    global __tainted
-    v = a - b
-    if id(a) in __tainted or id(b) in __tainted:
-        __tainted[id(v)] = True
+def __unary(a, op):
+    global tainted
+    v = unaryops[op](a)
+    if id(a) in tainted:
+        tainted[id(v)] = True
     return v
 
+def __bin(a,b, op):
+    global tainted
+    v = binops[op](a,b)
+    if id(a) in tainted or id(b) in tainted:
+        tainted[id(v)] = True
+    return v
 
 class Instrument:
     def __init__(self, func):
         self.fn = Function(func)
         lst = []
         for i in self.fn.opcodes:
-            if i.opname == 'BINARY_ADD':
-                self.fn.co_names.append('__add',)
-                add = dis.Instruction(opname='LOAD_GLOBAL', opcode=116, arg=len(self.fn.co_names) - 1, argval='__add', argrepr='__add', offset=0, starts_line=2, is_jump_target=False)
-                rot = dis.Instruction(opname='ROT_THREE', opcode=3, arg=None, argval=None, argrepr='', offset=6, starts_line=None, is_jump_target=False)
-                call = dis.Instruction(opname='CALL_FUNCTION', opcode=131, arg=2, argval=2, argrepr='', offset=6, starts_line=None, is_jump_target=False)
-                lst.extend([add, rot, call])
-            elif i.opname == 'BINARY_SUBTRACT':
-                self.fn.co_names.append('__sub',)
-                add = dis.Instruction(opname='LOAD_GLOBAL', opcode=116, arg=len(self.fn.co_names) - 1, argval='__sub', argrepr='__sub', offset=0, starts_line=2, is_jump_target=False)
-                rot = dis.Instruction(opname='ROT_THREE', opcode=3, arg=None, argval=None, argrepr='', offset=6, starts_line=None, is_jump_target=False)
-                call = dis.Instruction(opname='CALL_FUNCTION', opcode=131, arg=2, argval=2, argrepr='', offset=6, starts_line=None, is_jump_target=False)
-                lst.extend([add, rot, call])
+            if i.opname in binops:
+                op = i.opname
+                self.fn.co_names.extend(['fn', '__bin'])
+                self.fn.consts.append(op)
+                glob  = dis.Instruction(opname='LOAD_GLOBAL', opcode=116,
+                        arg=len(self.fn.co_names) - 2, argval='fn', argrepr='fn', offset=0, starts_line=0, is_jump_target=False)
+                attr = dis.Instruction(opname='LOAD_ATTR', opcode=106,
+                        arg=len(self.fn.co_names) - 1, argval='__bin', argrepr='__bin', offset=2, starts_line=None, is_jump_target=False)
+                rot  = dis.Instruction(opname='ROT_THREE', opcode=3,
+                        arg=None, argval=None, argrepr='', offset=6, starts_line=None, is_jump_target=False)
+                con1 = dis.Instruction(opname='LOAD_CONST', opcode=100,
+                        arg=len(self.fn.consts), argval=op, argrepr="'%s'" % op, offset=8, starts_line=None, is_jump_target=False)
+                call = dis.Instruction(opname='CALL_FUNCTION', opcode=131,
+                        arg=3, argval=3, argrepr='', offset=6, starts_line=None, is_jump_target=False)
+                lst.extend([glob, attr, rot, con1, call])
+            elif i.opname in unaryops:
+                op = i.opname
+                self.fn.co_names.extend(['fn', '__unary'])
+                self.fn.consts.append(op)
+                glob  = dis.Instruction(opname='LOAD_GLOBAL', opcode=116,
+                        arg=len(self.fn.co_names) - 2, argval='fn', argrepr='fn', offset=0, starts_line=0, is_jump_target=False)
+                attr = dis.Instruction(opname='LOAD_ATTR', opcode=106,
+                        arg=len(self.fn.co_names) - 1, argval='__unary', argrepr='__unary', offset=2, starts_line=None, is_jump_target=False)
+                rot  = dis.Instruction(opname='ROT_TWO', opcode=2,
+                        arg=None, argval=None, argrepr='', offset=6, starts_line=None, is_jump_target=False)
+                con1 = dis.Instruction(opname='LOAD_CONST', opcode=100,
+                        arg=len(self.fn.consts), argval=op, argrepr="'%s'" % op, offset=8, starts_line=None, is_jump_target=False)
+                call = dis.Instruction(opname='CALL_FUNCTION', opcode=131,
+                        arg=2, argval=2, argrepr='', offset=6, starts_line=None, is_jump_target=False)
+                lst.extend([glob, attr, rot, con1, call])
             else:
                 lst.append(i)
         self.fn.opcodes = lst
         self.fn.update_bytecode()
-        self.x = self.fn.build()
-
-
-def g(a, b):
-   y = a - b
-   return y
-
-def f(a, b):
-   y = a + b
-   return y
-
-m1 = Instrument(f)
-dis.dis(m1.x)
-a = 100
-b = 200
-__tainted[id(a)] = True
-r = m1.x(a, b)
-print("Tainted: %s" % (id(r) in __tainted))
-print("_"*10)
-__tainted = {}
-m2 = Instrument(g)
-dis.dis(m2.x)
-r = m2.x(2, 1)
-print("Tainted: %s" % (id(r) in __tainted))
+        self.function = self.fn.build()
 
