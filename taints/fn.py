@@ -114,59 +114,56 @@ def __bin(a,b, op):
     return v
 
 class Instrument:
+    def i_global(self):
+        return dis.Instruction(opname='LOAD_GLOBAL', opcode=dis.opmap['LOAD_GLOBAL'],
+                        arg=len(self.fn.co_names) - 2, argval='fn', argrepr='fn',
+                        offset=0, starts_line=None, is_jump_target=False)
+    def i_attr(self, attr):
+        return dis.Instruction(opname='LOAD_ATTR', opcode=dis.opmap['LOAD_ATTR'],
+                        arg=len(self.fn.co_names) - 1, argval=attr, argrepr=attr,
+                        offset=0, starts_line=None, is_jump_target=False)
+    def i_rot3(self):
+        return dis.Instruction(opname='ROT_THREE', opcode=dis.opmap['ROT_THREE'],
+                        arg=None, argval=None, argrepr='',
+                        offset=0, starts_line=None, is_jump_target=False)
+    def i_rot2(self):
+        return dis.Instruction(opname='ROT_TWO', opcode=dis.opmap['ROT_TWO'],
+                        arg=None, argval=None, argrepr='',
+                        offset=0, starts_line=None, is_jump_target=False)
+    def i_call(self, nargs):
+        return dis.Instruction(opname='CALL_FUNCTION', opcode=dis.opmap['CALL_FUNCTION'],
+                        arg=nargs, argval=nargs, argrepr='',
+                        offset=0, starts_line=None, is_jump_target=False)
+    def i_const(self, op):
+        return dis.Instruction(opname='LOAD_CONST', opcode=dis.opmap['LOAD_CONST'],
+                        arg=len(self.fn.consts), argval=op, argrepr="'%s'" % op,
+                        offset=0, starts_line=None, is_jump_target=False)
+    def i_tuple(self, nargs):
+        return dis.Instruction(opname='BUILD_TUPLE', opcode=dis.opmap['BUILD_TUPLE'],
+                        arg=nargs, argval=nargs, argrepr='',
+                        offset=0, starts_line=None, is_jump_target=False)
+
     def __init__(self, func):
         self.fn = Function(func)
         lst = []
         for i in self.fn.opcodes:
-            if i.opname in binops:
-                op = i.opname
+            op = i.opname
+            if op in binops:
                 self.fn.co_names.extend(['fn', '__bin'])
                 self.fn.consts.append(op)
-                glob  = dis.Instruction(opname='LOAD_GLOBAL', opcode=116,
-                        arg=len(self.fn.co_names) - 2, argval='fn', argrepr='fn', offset=0, starts_line=0, is_jump_target=False)
-                attr = dis.Instruction(opname='LOAD_ATTR', opcode=106,
-                        arg=len(self.fn.co_names) - 1, argval='__bin', argrepr='__bin', offset=2, starts_line=None, is_jump_target=False)
-                rot  = dis.Instruction(opname='ROT_THREE', opcode=3,
-                        arg=None, argval=None, argrepr='', offset=6, starts_line=None, is_jump_target=False)
-                con1 = dis.Instruction(opname='LOAD_CONST', opcode=100,
-                        arg=len(self.fn.consts), argval=op, argrepr="'%s'" % op, offset=8, starts_line=None, is_jump_target=False)
-                call = dis.Instruction(opname='CALL_FUNCTION', opcode=131,
-                        arg=3, argval=3, argrepr='', offset=6, starts_line=None, is_jump_target=False)
-                lst.extend([glob, attr, rot, con1, call])
+                lst.extend([self.i_global(), self.i_attr('__bin'), self.i_rot3(), self.i_const(op), self.i_call(3)])
             elif i.opname in unaryops:
-                op = i.opname
                 self.fn.co_names.extend(['fn', '__unary'])
                 self.fn.consts.append(op)
-                glob  = dis.Instruction(opname='LOAD_GLOBAL', opcode=116,
-                        arg=len(self.fn.co_names) - 2, argval='fn', argrepr='fn', offset=0, starts_line=0, is_jump_target=False)
-                attr = dis.Instruction(opname='LOAD_ATTR', opcode=106,
-                        arg=len(self.fn.co_names) - 1, argval='__unary', argrepr='__unary', offset=2, starts_line=None, is_jump_target=False)
-                rot  = dis.Instruction(opname='ROT_TWO', opcode=2,
-                        arg=None, argval=None, argrepr='', offset=6, starts_line=None, is_jump_target=False)
-                con1 = dis.Instruction(opname='LOAD_CONST', opcode=100,
-                        arg=len(self.fn.consts), argval=op, argrepr="'%s'" % op, offset=8, starts_line=None, is_jump_target=False)
-                call = dis.Instruction(opname='CALL_FUNCTION', opcode=131,
-                        arg=2, argval=2, argrepr='', offset=6, starts_line=None, is_jump_target=False)
-                lst.extend([glob, attr, rot, con1, call])
+                lst.extend([self.i_global(), self.i_attr('__unary'), self.i_rot2(), self.i_const(op), self.i_call(2)])
             elif i.opname == 'CALL_FUNCTION':
-                print(i)
-                op = i.opname
                 nargs = i.arg
                 self.fn.co_names.extend(['fn', '__call'])
                 self.fn.consts.append(op)
-                tupl  = dis.Instruction(opname='BUILD_TUPLE', opcode=102,
-                        arg=nargs, argval=nargs, argrepr='', offset=4, starts_line=None, is_jump_target=False)
-                glob  = dis.Instruction(opname='LOAD_GLOBAL', opcode=116,
-                        arg=len(self.fn.co_names) - 2, argval='fn', argrepr='fn', offset=0, starts_line=0, is_jump_target=False)
-                attr = dis.Instruction(opname='LOAD_ATTR', opcode=106,
-                        arg=len(self.fn.co_names) - 1, argval='__call', argrepr='__call', offset=2, starts_line=None, is_jump_target=False)
-                rot  = dis.Instruction(opname='ROT_THREE', opcode=3,
-                        arg=None, argval=None, argrepr='', offset=6, starts_line=None, is_jump_target=False)
-                call = dis.Instruction(opname='CALL_FUNCTION', opcode=131,
-                        arg=2, argval=2, argrepr='', offset=6, starts_line=None, is_jump_target=False)
-                lst.extend([tupl, glob, attr, rot, call])
+                lst.extend([self.i_tuple(nargs), self.i_global(), self.i_attr('__call'), self.i_rot3(), self.i_call(2)])
             else:
                 lst.append(i)
+
         self.fn.opcodes = lst
         self.fn.update_bytecode()
         self.function = self.fn.build()
