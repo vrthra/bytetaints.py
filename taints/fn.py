@@ -4,7 +4,6 @@
 import dis
 import types
 
-
 class Function:
     """
     Make modifying functions a little nicer.
@@ -71,24 +70,6 @@ unaryops = {
           'UNARY_NOT': lambda a: not a,
           'UNARY_INVERT': lambda a: ~a
         }
-#cmpops = {
-#          # cmpop = Eq | NotEq | Lt | LtE | Gt | GtE | Is | IsNot | In | NotIn
-#          'Eq': lambda a, b: a == b,
-#          'NotEq': lambda a, b: a != b,
-#          'Lt': lambda a, b: a < b,
-#          'LtE': lambda a, b: a <= b,
-#          'Gt': lambda a, b: a > b,
-#          'GtE': lambda a, b: a >= b,
-#          'Is': lambda a, b: a is b,
-#          'IsNot': lambda a, b: a is not b,
-#          'In': lambda a, b: a in b,
-#          'NotIn': lambda a, b: a not in b
-#          }
-#boolops = {
-#          # boolop = And | Or
-#          'And': lambda a, b: a and b,
-#          'Or': lambda a, b: a or b
-#        }
 
 def __call(fn, tupl):
     global tainted
@@ -137,6 +118,16 @@ class Instrument:
 
     @classmethod
     def i(cls, func):
+        # TODO for students. We need to use the instrumented version only until
+        # we have figured out the semantics. The semantics is of the form
+        # if any(tainted(a) in my_args): taint(result)
+        # So if one of the arguments previously known to propagate taint to
+        # result is tainted, then the result is tainted, and we can return
+        # 'result is_tainted' after running the native function.
+        # similarly, we can mark result not tainted if we have complete branch
+        # coverage (which is sufficient for taint inference -- TODO to explain)
+        # and none of the previous taing propagator arguments are tainted
+        # and execute the native version.
         if func.__name__ in Instrument.cache:
             return Instrument.cache[func.__name__]
         ins = Instrument(func)
