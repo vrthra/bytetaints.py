@@ -4,13 +4,34 @@
 import dis
 import types
 
+tainted = {}
+binops = {
+          'BINARY_ADD': lambda a, b: a + b,
+          'BINARY_SUBTRACT': lambda a, b: a - b,
+          'BINARY_MULTIPLY':  lambda a, b: a * b,
+          'BINARY_MATRIX_MULTIPLY':  lambda a, b: a @ b,
+          'BINARY_TRUE_DIVIDE': lambda a, b: a / b,
+          'BINARY_MODULO': lambda a, b: a % b,
+          'BINARY_POWER': lambda a, b: a ** b,
+          'BINARY_LSHIFT':  lambda a, b: a << b,
+          'BINARY_RSHIFT': lambda a, b: a >> b,
+          'BINARY_OR': lambda a, b: a | b,
+          'BINARY_XOR': lambda a, b: a ^ b,
+          'BINARY_AND': lambda a, b: a & b,
+          'BINARY_FLOOR_DIVIDE': lambda a, b: a // b,
+          }
+unaryops = {
+          'UNARY_POSITIVE': lambda a: a,
+          'UNARY_NEGATIVE': lambda a: -a,
+          'UNARY_NOT': lambda a: not a,
+          'UNARY_INVERT': lambda a: ~a
+        }
+
 class TaintEx(AssertionError):
-    def __init__(self, err):
-        self.err = err
+    def __init__(self, err): self.err = err
 
 class Function:
     def __init__(self, func):
-        #import pudb; pudb_set.trace()
         self.func = func
         self.docstring = func.__doc__
         self.consts = list(func.__code__.co_consts[1:])
@@ -46,28 +67,6 @@ class Function:
     def name(self):
         return self.func.__qualname__
 
-tainted = {}
-binops = {
-          'BINARY_ADD': lambda a, b: a + b,
-          'BINARY_SUBTRACT': lambda a, b: a - b,
-          'BINARY_MULTIPLY':  lambda a, b: a * b,
-          'BINARY_MATRIX_MULTIPLY':  lambda a, b: a @ b,
-          'BINARY_TRUE_DIVIDE': lambda a, b: a / b,
-          'BINARY_MODULO': lambda a, b: a % b,
-          'BINARY_POWER': lambda a, b: a ** b,
-          'BINARY_LSHIFT':  lambda a, b: a << b,
-          'BINARY_RSHIFT': lambda a, b: a >> b,
-          'BINARY_OR': lambda a, b: a | b,
-          'BINARY_XOR': lambda a, b: a ^ b,
-          'BINARY_AND': lambda a, b: a & b,
-          'BINARY_FLOOR_DIVIDE': lambda a, b: a // b,
-          }
-unaryops = {
-          'UNARY_POSITIVE': lambda a: a,
-          'UNARY_NEGATIVE': lambda a: -a,
-          'UNARY_NOT': lambda a: not a,
-          'UNARY_INVERT': lambda a: ~a
-        }
 
 def __call(fn, tupl):
     return Instrument.i(fn)(*tupl)
