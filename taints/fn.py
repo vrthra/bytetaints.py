@@ -1,5 +1,4 @@
 # vim: set nospell:
-# based on mutant by "Michael Stephens <me@mikej.st>" BSD License
 # TODO: consider using xdis rather than munge it myself.
 
 import dis
