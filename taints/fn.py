@@ -4,22 +4,20 @@
 import dis
 import types
 
-class Function:
-    """
-    Make modifying functions a little nicer.
-    """
+class TaintEx(AssertionError):
+    def __init__(self, err):
+        self.err = err
 
+class Function:
     def __init__(self, func):
+        #import pudb; pudb_set.trace()
         self.func = func
         self.docstring = func.__doc__
         self.consts = list(func.__code__.co_consts[1:])
         self.co_names = list(func.__code__.co_names)
         self.co_varnames = list(func.__code__.co_varnames)
-        self.parse_bytecode()
-        self.update_bytecode()
-
-    def parse_bytecode(self):
         self.opcodes = list(dis.get_instructions(self.func.__code__))
+        self.update_bytecode()
 
     def update_bytecode(self):
         self.ops = [x.opcode for x in self.opcodes]
@@ -46,7 +44,7 @@ class Function:
         return new_func
 
     def name(self):
-        return self.func.__name__
+        return self.func.__qualname__
 
 tainted = {}
 binops = {
@@ -72,67 +70,123 @@ unaryops = {
         }
 
 def __call(fn, tupl):
-    global tainted
-    if type(fn) is "<class 'builtin_function_or_method'>":
-        # TODO: for each builtin used, define the taint semantics
-        # and use it here.
-        for i in tupl:
-            v = fn(*tupl)
-            if id(i) in tainted:
-                tainted[id(v)] = True
-            return v
-    else:
-        # if not built in, we should use the instrumented version.
-        # The instrumentation takes care of propagating taints
-        return Instrument.i(fn)(*tupl)
+    return Instrument.i(fn)(*tupl)
 
 def __unary(a, op):
     global tainted
     v = unaryops[op](a)
-    if id(a) in tainted:
+    if Instrument.is_tainted(a):
         tainted[id(v)] = True
     return v
 
 def __bin(a,b, op):
     global tainted
     v = binops[op](a,b)
-    if id(a) in tainted or id(b) in tainted:
+    if Instrument.is_tainted((a, b)):
         tainted[id(v)] = True
     return v
 
 class Instrument:
     cache = {}
+    sources = {}
+    sinks = {}
+    cleaners = {}
     def i_(self, opname, arg=None, argval=None, argrepr=''):
         if arg is not None and argval is None: argval = arg
         return dis.Instruction(opname=opname, opcode=dis.opmap[opname],
                         arg=arg, argval=argval, argrepr=argrepr,
                         offset=0, starts_line=None, is_jump_target=False)
 
-    def i_global(self):      return self.i_('LOAD_GLOBAL', len(self.fn.co_names) - 2, 'fn')
-    def i_attr(self, attr):  return self.i_('LOAD_ATTR', len(self.fn.co_names) - 1, attr)
-    def i_rot3(self):        return self.i_('ROT_THREE')
-    def i_rot2(self):        return self.i_('ROT_TWO')
-    def i_call(self, nargs): return self.i_('CALL_FUNCTION', nargs)
-    def i_const(self, op):   return self.i_('LOAD_CONST', len(self.fn.consts), op, "'%s'" % op)
-    def i_tuple(self, nargs):return self.i_('BUILD_TUPLE', nargs)
+    def i_load_global(self):          return self.i_('LOAD_GLOBAL', len(self.fn.co_names) - 2, 'fn')
+    def i_load_attr(self, attr):      return self.i_('LOAD_ATTR', len(self.fn.co_names) - 1, attr)
+    def i_rot_three(self):            return self.i_('ROT_THREE')
+    def i_rot_two(self):              return self.i_('ROT_TWO')
+    def i_call_function(self, nargs): return self.i_('CALL_FUNCTION', nargs)
+    def i_load_const(self, op):       return self.i_('LOAD_CONST', len(self.fn.consts), op, "'%s'" % op)
+    def i_build_tuple(self, nargs):   return self.i_('BUILD_TUPLE', nargs)
+
+    @classmethod
+    def add_source(cls, func):
+        cls.sources[func.__qualname__] = True
+        return Instrument.i(func)
+    @classmethod
+    def add_sink(cls, func):
+        cls.sinks[func.__qualname__] = True
+        return Instrument.i(func)
+    @classmethod
+    def add_cleaner(cls, func):
+        cls.cleaners[func.__qualname__] = True
+        return Instrument.i(func)
+
+    @classmethod
+    def is_tainted(cls, obj):
+        global tainted
+        if id(obj) in tainted: return True
+        elif isinstance(obj, dict):
+           for k,v in obj.items():
+               if cls.is_tainted(k) or cls.is_tainted(v): return True 
+        elif isinstance(obj, tuple):
+           for v in obj:
+               if cls.is_tainted(v): return True 
+        elif isinstance(obj, list):
+           for v in obj:
+               if cls.is_tainted(v): return True
+        else:
+           return False
 
     @classmethod
     def i(cls, func):
-        # TODO for students. We need to use the instrumented version only until
-        # we have figured out the semantics. The semantics is of the form
-        # if any(tainted(a) in my_args): taint(result)
-        # So if one of the arguments previously known to propagate taint to
-        # result is tainted, then the result is tainted, and we can return
-        # 'result is_tainted' after running the native function.
-        # similarly, we can mark result not tainted if we have complete branch
-        # coverage (which is sufficient for taint inference -- TODO to explain)
-        # and none of the previous taing propagator arguments are tainted
-        # and execute the native version.
-        if func.__name__ in Instrument.cache:
-            return Instrument.cache[func.__name__]
+        global tainted
+        if func.__qualname__ in cls.sources:
+            def myfun(*tupl):
+                """ MyFun Sources %s """ % func.__qualname__
+                # a source will always taint its output. So no instrumentation
+                # necessary.
+                v = func(*tupl)
+                tainted[id(v)] = True
+                return v
+            return myfun
+        elif func.__qualname__ in cls.cleaners:
+            def myfun(*tupl):
+                """ MyFun Cleaners %s """ % func.__qualname__
+                # a cleaner cleans up what ever gets passed in. Its results are
+                # always untainted
+                v = func(*tupl)
+                if id(v) in tainted:
+                    del tainted[id(v)]
+                return v
+            return myfun
+        elif func.__qualname__ in cls.sinks:
+            def myfun(*tupl):
+                """ MyFun Sinks %s """ % func.__qualname__
+                if Instrument.is_tainted(tupl):
+                    raise TaintEx('Tainted data reached sink: %s(%s)' % (func.__qualname__, str(tupl)))
+                # none of the arguments were tainted. Hence there is no point
+                # in instrumenting the remaining call chain.
+                return func(*tupl)
+            return myfun
+
+        elif func.__qualname__ in Instrument.cache:
+            # TODO for students. We need to use the instrumented version only until
+            # we have figured out the semantics. The semantics is of the form
+            # if any(tainted(a) in my_args): taint(result)
+            # So if one of the arguments previously known to propagate taint to
+            # result is tainted, then the result is tainted, and we can return
+            # 'result is_tainted' after running the native function.
+            # similarly, we can mark result not tainted if we have complete branch
+            # coverage (which is sufficient for taint inference -- TODO to explain)
+            # and none of the previous taing propagator arguments are tainted
+            # and execute the native version.
+            return Instrument.cache[func.__qualname__].function
+        elif str(type(func)) == "<class 'builtin_function_or_method'>":
+            def myfun(*tupl):
+                v = func(*tupl)
+                tainted[id(v)] = Instrument.is_tainted(tupl)
+                return v
+            return myfun
         ins = Instrument(func)
-        Instrument.cache[func.__name__] = ins.function
-        return Instrument.cache[func.__name__]
+        Instrument.cache[func.__qualname__] = ins
+        return Instrument.cache[func.__qualname__].function
 
     def __init__(self, func):
         self.fn = Function(func)
@@ -142,20 +196,33 @@ class Instrument:
             if op in binops:
                 self.fn.co_names.extend(['fn', '__bin'])
                 self.fn.consts.append(op)
-                lst.extend([self.i_global(), self.i_attr('__bin'), self.i_rot3(), self.i_const(op), self.i_call(3)])
+                lst.extend([self.i_load_global(),
+                            self.i_load_attr('__bin'),
+                            self.i_rot_three(),
+                            self.i_load_const(op),
+                            self.i_call_function(3)])
             elif i.opname in unaryops:
                 self.fn.co_names.extend(['fn', '__unary'])
                 self.fn.consts.append(op)
-                lst.extend([self.i_global(), self.i_attr('__unary'), self.i_rot2(), self.i_const(op), self.i_call(2)])
+                lst.extend([self.i_load_global(),
+                            self.i_load_attr('__unary'),
+                            self.i_rot_two(),
+                            self.i_load_const(op),
+                            self.i_call_function(2)])
             elif i.opname == 'CALL_FUNCTION':
                 nargs = i.arg
                 self.fn.co_names.extend(['fn', '__call'])
                 self.fn.consts.append(op)
-                lst.extend([self.i_tuple(nargs), self.i_global(), self.i_attr('__call'), self.i_rot3(), self.i_call(2)])
+                lst.extend([self.i_build_tuple(nargs),
+                            self.i_load_global(),
+                            self.i_load_attr('__call'),
+                            self.i_rot_three(),
+                            self.i_call_function(2)])
             else:
                 lst.append(i)
 
         self.fn.opcodes = lst
         self.fn.update_bytecode()
         self.function = self.fn.build()
+        #self.function.__qualname__ = func.__qualname__
 
