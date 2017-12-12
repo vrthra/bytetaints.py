@@ -92,11 +92,19 @@ unaryops = {
 
 def __call(fn, tupl):
     global tainted
-    v = fn(*tupl)
-    for i in tupl:
-        if id(i) in tainted:
-            tainted[id(v)] = True
-    return v
+    if type(fn) is "<class 'builtin_function_or_method'>":
+        # TODO: for each builtin used, define the taint semantics
+        # and use it here.
+        for i in tupl:
+            v = fn(*tupl)
+            if id(i) in tainted:
+                tainted[id(v)] = True
+            return v
+    else:
+        # if not built in, we should use the instrumented version.
+        _fn = Instrument(fn).function
+        v = _fn(*tupl)
+        return v
 
 def __unary(a, op):
     global tainted
@@ -113,6 +121,7 @@ def __bin(a,b, op):
     return v
 
 class Instrument:
+    cache = {}
     def i_global(self):
         return dis.Instruction(opname='LOAD_GLOBAL', opcode=dis.opmap['LOAD_GLOBAL'],
                         arg=len(self.fn.co_names) - 2, argval='fn', argrepr='fn',
@@ -141,6 +150,14 @@ class Instrument:
         return dis.Instruction(opname='BUILD_TUPLE', opcode=dis.opmap['BUILD_TUPLE'],
                         arg=nargs, argval=nargs, argrepr='',
                         offset=0, starts_line=None, is_jump_target=False)
+
+    @classmethod
+    def i(cls, func):
+        if func.__name__ in Instrument.cache:
+            return Instrument.cache[func.__name__]
+        ins = Instrument(func)
+        Instrument.cache[func.__name__] = ins.function
+        return Instrument.cache[func.__name__]
 
     def __init__(self, func):
         self.fn = Function(func)
