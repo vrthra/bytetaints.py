@@ -122,34 +122,25 @@ def __bin(a,b, op):
 
 class Instrument:
     cache = {}
+    def i_(self, opname, arg, argval, argrepr):
+        return dis.Instruction(opname=opname, opcode=dis.opmap[opname],
+                        arg=arg, argval=argval, argrepr=argrepr,
+                        offset=0, starts_line=None, is_jump_target=False)
+
     def i_global(self):
-        return dis.Instruction(opname='LOAD_GLOBAL', opcode=dis.opmap['LOAD_GLOBAL'],
-                        arg=len(self.fn.co_names) - 2, argval='fn', argrepr='fn',
-                        offset=0, starts_line=None, is_jump_target=False)
+        return self.i_('LOAD_GLOBAL', len(self.fn.co_names) - 2, 'fn', 'fn')
     def i_attr(self, attr):
-        return dis.Instruction(opname='LOAD_ATTR', opcode=dis.opmap['LOAD_ATTR'],
-                        arg=len(self.fn.co_names) - 1, argval=attr, argrepr=attr,
-                        offset=0, starts_line=None, is_jump_target=False)
+        return self.i_('LOAD_ATTR', len(self.fn.co_names) - 1, attr, attr)
     def i_rot3(self):
-        return dis.Instruction(opname='ROT_THREE', opcode=dis.opmap['ROT_THREE'],
-                        arg=None, argval=None, argrepr='',
-                        offset=0, starts_line=None, is_jump_target=False)
+        return self.i_('ROT_THREE', None, None, '')
     def i_rot2(self):
-        return dis.Instruction(opname='ROT_TWO', opcode=dis.opmap['ROT_TWO'],
-                        arg=None, argval=None, argrepr='',
-                        offset=0, starts_line=None, is_jump_target=False)
+        return self.i_('ROT_TWO', None, None, '')
     def i_call(self, nargs):
-        return dis.Instruction(opname='CALL_FUNCTION', opcode=dis.opmap['CALL_FUNCTION'],
-                        arg=nargs, argval=nargs, argrepr='',
-                        offset=0, starts_line=None, is_jump_target=False)
+        return self.i_('CALL_FUNCTION', nargs, nargs, '')
     def i_const(self, op):
-        return dis.Instruction(opname='LOAD_CONST', opcode=dis.opmap['LOAD_CONST'],
-                        arg=len(self.fn.consts), argval=op, argrepr="'%s'" % op,
-                        offset=0, starts_line=None, is_jump_target=False)
+        return self.i_('LOAD_CONST', len(self.fn.consts), op, "'%s'" % op)
     def i_tuple(self, nargs):
-        return dis.Instruction(opname='BUILD_TUPLE', opcode=dis.opmap['BUILD_TUPLE'],
-                        arg=nargs, argval=nargs, argrepr='',
-                        offset=0, starts_line=None, is_jump_target=False)
+        return self.i_('BUILD_TUPLE', nargs, nargs, '')
 
     @classmethod
     def i(cls, func):
