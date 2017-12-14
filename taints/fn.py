@@ -69,6 +69,12 @@ class Function:
 
 
 def __call(fn, tupl):
+    #if not Instrument.is_tainted(tupl) and fn.__qualname__ not in Instrument.sources:
+    #   TODO: Can be done only if we know for sure that the chain from fn is not
+    # accessing globals
+        # no taints until now. So there is no point in using
+        # instrumented functions any more.
+    #    return fn(*tupl)
     return Instrument.i(fn)(*tupl)
 
 def __unary(a, op):
