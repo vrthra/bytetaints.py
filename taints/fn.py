@@ -196,6 +196,7 @@ class Instrument:
         return Instrument.cache[func.__qualname__].function
 
     def __init__(self, func):
+        self._function = func
         self.fn = Function(func)
         lst = []
         for i in self.fn.opcodes:
