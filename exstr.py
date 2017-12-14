@@ -1,30 +1,33 @@
+import sys
 import fn
 import dis
 
-fn.Instrument.add_source(input)
-fn.Instrument.add_sink(print)
-def cleaner(a):
-    return a
+def myinput(): return 'hello'
+def cleaner(a): return a
+def log(v): print(v)
+
+fn.Instrument.add_source(myinput)
+fn.Instrument.add_sink(log)
 fn.Instrument.add_cleaner(cleaner)
 
 def x(a, b):
     z = a + (b * 10)
     return z
 
-
 def main(args):
-    a = input()
     # this will fail
     #print(">", a)
+    a = myinput()
     b = ' world'
     z = x(a,b)
-    print("> %s" % cleaner(z))
+    log("> %s" % cleaner(z))
     z = x(a,b)
-    print("> %s" % z)
+    log("> %s" % z)
 
 
 if __name__ == '__main__':
     try:
-        fn.Instrument.i(main)([])
+        # myinput() here will not taint.
+        fn.Instrument.i(main)(sys.argv)
     except fn.TaintEx as err:
         print("Tainted: {0}".format(err))
