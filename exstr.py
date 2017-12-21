@@ -12,7 +12,7 @@ fn.Instrument.add_cleaner(cleaner)
 
 def x(a, b):
     z = a + (b * 10)
-    if z > 0:
+    if len(z) > 0:
         return a
     return z
 

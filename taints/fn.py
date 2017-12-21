@@ -27,10 +27,10 @@ unaryops = {
           'UNARY_INVERT': lambda a: ~a
         }
 jumpops = {
-        'JUMP_ABSOLUTE': lambda a, i: a.i_jump_absolute(i*2),
-        'POP_JUMP_IF_TRUE': lambda a, i: a.i_pop_jump_if_true(i*2),
-        'POP_JUMP_IF_FALSE': lambda a, i: a.i_pop_jump_if_false(i*2),
-        }
+          'JUMP_ABSOLUTE': lambda a, ins, i: a.i_jump_absolute(ins.arg + i*2),
+          'POP_JUMP_IF_TRUE': lambda a, ins, i: a.i_pop_jump_if_true(ins.arg + i*2),
+          'POP_JUMP_IF_FALSE': lambda a, ins, i: a.i_pop_jump_if_false(ins.arg + i*2),
+          }
 
 
 class TaintEx(AssertionError):
@@ -215,8 +215,9 @@ class Instrument:
         self.fn = Function(func)
         lst = []
         jump_displacement = 0
-        for i in self.fn.opcodes:
+        for j, i in enumerate(self.fn.opcodes):
             op = i.opname
+            print(j, op, i.arg, "\t\t\t<<" if i.is_jump_target else '')
             if op in binops:
                 self.fn.co_names.extend(['fn', '__bin'])
                 self.fn.consts.append(op)
@@ -249,11 +250,13 @@ class Instrument:
                 lst.extend(ops)
                 jump_displacement += len(ops) - 1
             elif i.opname in jumpops:
-                j = jumpops[i.opname](self, jump_displacement)
+                j = jumpops[i.opname](self, i, jump_displacement)
                 lst.append(j)
             else:
                 lst.append(i)
-
+        print()
+        for j,i in enumerate(lst):
+            print(j, i.opname, i.arg, "\t\t\t<<" if i.is_jump_target else '')
         self.fn.opcodes = lst
         self.fn.update_bytecode()
         self.function = self.fn.build()
