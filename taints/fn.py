@@ -26,6 +26,12 @@ unaryops = {
           'UNARY_NOT': lambda a: not a,
           'UNARY_INVERT': lambda a: ~a
         }
+jumpops = {
+        'JUMP_ABSOLUTE': None,
+        'POP_JUMP_IF_TRUE': None,
+        'POP_JUMP_IF_FALSE': None,
+        }
+
 
 class TaintEx(AssertionError):
     def __init__(self, err): self.err = err
@@ -205,33 +211,43 @@ class Instrument:
         self._function = func
         self.fn = Function(func)
         lst = []
+        jump_displacement = 0
         for i in self.fn.opcodes:
             op = i.opname
             if op in binops:
                 self.fn.co_names.extend(['fn', '__bin'])
                 self.fn.consts.append(op)
-                lst.extend([self.i_load_global(),
-                            self.i_load_attr('__bin'),
-                            self.i_rot_three(),
-                            self.i_load_const(op),
-                            self.i_call_function(3)])
+                ops = [self.i_load_global(),
+                       self.i_load_attr('__bin'),
+                       self.i_rot_three(),
+                       self.i_load_const(op),
+                       self.i_call_function(3)]
+                lst.extend(ops)
+                jump_displacement += len(ops) - 1
             elif i.opname in unaryops:
                 self.fn.co_names.extend(['fn', '__unary'])
                 self.fn.consts.append(op)
-                lst.extend([self.i_load_global(),
-                            self.i_load_attr('__unary'),
-                            self.i_rot_two(),
-                            self.i_load_const(op),
-                            self.i_call_function(2)])
+                ops = [self.i_load_global(),
+                       self.i_load_attr('__unary'),
+                       self.i_rot_two(),
+                       self.i_load_const(op),
+                       self.i_call_function(2)]
+                lst.extend(ops)
+                jump_displacement += len(ops) - 1
             elif i.opname == 'CALL_FUNCTION':
                 nargs = i.arg
                 self.fn.co_names.extend(['fn', '__call'])
                 self.fn.consts.append(op)
-                lst.extend([self.i_build_tuple(nargs),
-                            self.i_load_global(),
-                            self.i_load_attr('__call'),
-                            self.i_rot_three(),
-                            self.i_call_function(2)])
+                ops = [self.i_build_tuple(nargs),
+                       self.i_load_global(),
+                       self.i_load_attr('__call'),
+                       self.i_rot_three(),
+                       self.i_call_function(2)]
+                lst.extend(ops)
+                jump_displacement += len(ops) - 1
+            elif i.opname in jumpops:
+                i.arg += jump_displacement
+                lst.append(i)
             else:
                 lst.append(i)
 
