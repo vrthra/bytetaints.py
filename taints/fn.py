@@ -27,9 +27,9 @@ unaryops = {
           'UNARY_INVERT': lambda a: ~a
         }
 jumpops = {
-        'JUMP_ABSOLUTE': None,
-        'POP_JUMP_IF_TRUE': None,
-        'POP_JUMP_IF_FALSE': None,
+        'JUMP_ABSOLUTE': lambda a, i: a.i_jump_absolute(i*2),
+        'POP_JUMP_IF_TRUE': lambda a, i: a.i_pop_jump_if_true(i*2),
+        'POP_JUMP_IF_FALSE': lambda a, i: a.i_pop_jump_if_false(i*2),
         }
 
 
@@ -106,6 +106,9 @@ class Instrument:
                         arg=arg, argval=argval, argrepr=argrepr,
                         offset=0, starts_line=None, is_jump_target=False)
 
+    def i_jump_absolute(self, i):     return self.i_('JUMP_ABSOLUTE', i)
+    def i_pop_jump_if_true(self, i):  return self.i_('POP_JUMP_IF_TRUE', i)
+    def i_pop_jump_if_false(self, i): return self.i_('POP_JUMP_IF_FALSE', i)
     def i_load_global(self):          return self.i_('LOAD_GLOBAL', len(self.fn.co_names) - 2, 'fn')
     def i_load_attr(self, attr):      return self.i_('LOAD_ATTR', len(self.fn.co_names) - 1, attr)
     def i_rot_three(self):            return self.i_('ROT_THREE')
@@ -246,8 +249,8 @@ class Instrument:
                 lst.extend(ops)
                 jump_displacement += len(ops) - 1
             elif i.opname in jumpops:
-                i.arg += jump_displacement
-                lst.append(i)
+                j = jumpops[i.opname](self, jump_displacement)
+                lst.append(j)
             else:
                 lst.append(i)
 
