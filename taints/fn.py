@@ -32,6 +32,10 @@ jumpops = {
           'POP_JUMP_IF_FALSE': lambda a, ins, i: a.i_pop_jump_if_false(ins.arg + i*2),
           }
 
+fnops   = {
+        'CALL_FUNCTION' : None
+        }
+
 
 class TaintEx(AssertionError):
     def __init__(self, err): self.err = err
@@ -99,7 +103,7 @@ class Instrument:
     cache = {}
     sources = {}
     sinks = {}
-    cleaners = {}
+    sanitizers = {}
     def i_(self, opname, arg=None, argval=None, argrepr=''):
         if arg is not None and argval is None: argval = arg
         return dis.Instruction(opname=opname, opcode=dis.opmap[opname],
@@ -137,8 +141,8 @@ class Instrument:
         cls.sinks[func.__qualname__] = True
         return Instrument.i(func)
     @classmethod
-    def add_cleaner(cls, func):
-        cls.cleaners[func.__qualname__] = True
+    def add_sanitizer(cls, func):
+        cls.sanitizers[func.__qualname__] = True
         return Instrument.i(func)
 
     @classmethod
@@ -168,10 +172,10 @@ class Instrument:
                 cls.mark(v)
                 return v
             return myfun
-        elif func.__qualname__ in cls.cleaners:
+        elif func.__qualname__ in cls.sanitizers:
             def myfun(*tupl):
-                """ MyFun Cleaners %s """ % func.__qualname__
-                # a cleaner cleans up what ever gets passed in. Its results are
+                """ MyFun sanitizers %s """ % func.__qualname__
+                # a sanitier cleans up what ever gets passed in. Its results are
                 # always untainted
                 v = func(*tupl)
                 cls.unmark(v)
@@ -238,7 +242,7 @@ class Instrument:
                        self.i_call_function(2)]
                 lst.extend(ops)
                 jump_displacement += len(ops) - 1
-            elif i.opname == 'CALL_FUNCTION':
+            elif i.opname in fnops:
                 nargs = i.arg
                 self.fn.co_names.extend(['fn', '__call'])
                 self.fn.consts.append(op)
